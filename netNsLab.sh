@@ -12,6 +12,7 @@ NC='\033[0m'
 HOST_IP=$(hostname -I | awk '{print $1}')
 SELF_127_IP="127.0.0.1"
 NS_LIST=()
+DEBUG=true
 
 log() {
     echo -e "${GREEN}[$(date +'%Y-%m-%dT%H:%M:%S')]${NC} $1"
@@ -43,10 +44,19 @@ create_ns(){
     log "created successful: $ns_name"
 }
 
+debug_pause() {
+    if [[ "$DEBUG" == "true" ]]; then
+        echo -e "\033[1;33m[DEBUG]${NC} Debug pause, enter to continue."
+        echo -ne "ip a | ping | ip rout | bridge fdb show"
+        read -r
+    fi
+}
+
 main() {
     echo "check current namspace folder"
     ip netns list
     create_ns ns1
+    debug_pause
     clean_up
 }
 
