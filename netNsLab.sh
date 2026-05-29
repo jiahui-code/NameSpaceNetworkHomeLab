@@ -5,6 +5,8 @@
 # History:
 # 2026/05/26	kary	First release
 
+set -euo pipefail
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
@@ -12,6 +14,7 @@ NC='\033[0m'
 HOST_IP=$(hostname -I | awk '{print $1}')
 SELF_127_IP="127.0.0.1"
 NS_LIST=()
+LINK_LIST=()
 DEBUG=true
 
 log() {
@@ -26,15 +29,32 @@ run_cmd() {
     fi
 }
 
-clean_up() {
-    log "chear up namespaces."
+clean_up_ns() {
+    log "chean up ns."
     for ns in "${NS_LIST[@]}"; do
         if ip netns list | grep -q "$ns"; then
             log "delete NS: $ns"
             sudo ip netns delete "$ns"
         fi
-    log "cleared created namespaces."
+    log "cleared."
     done
+}
+
+clean_up_link() {
+    log "chean up link."
+    for link in "${LINK_LIST[@]}"; do
+        if ip link show | grep -q "$link"; then
+            log "delete link: $link"
+            ip link set "$link" down || true
+            ip link delete "link" 2>/dev/null || true
+        fi
+    log "cleared."
+    done
+}
+
+clean_up(){
+    clean_up_link
+    clean_up_ns
 }
 
 create_ns(){
@@ -46,19 +66,30 @@ create_ns(){
 
 debug_pause() {
     if [[ "$DEBUG" == "true" ]]; then
+        echo "$*"
         echo -e "\033[1;33m[DEBUG]${NC} Debug pause, enter to continue."
-        echo -ne "ip a | ping | ip rout | bridge fdb show"
+        echo -ne "ip a | ping | ip rout | ip link show | bridge fdb show"
         read -r
     fi
 }
 
-main() {
+trap clean_up EXIT
+
+#varify namespace speration then link to host VM
+main1() {
     echo "check current namspace folder"
     ip netns list
     create_ns ns1
-    debug_pause
-    clean_up
+    debug_pause created single namespace
+    run_cmd ip netns exec ns1 ip link set lo up
+    local link1="veth-client" | run_cmd ip link add "$link1" type veth peer name veth-server | LINK_LIST+=("$link1")
+   
+    run_cmd ip addr add 172.18.0.11/16 dev veth-client
+    run_cmd ip link set veth-client up
+    run_cmd ip addr add 172.18.0.12/16 dev veth-server
+    run_cmd ip link set veth-server up
+    debug_pause veth linked created, both peer in host
 }
 
-main
+main1 "$@"
 
