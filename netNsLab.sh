@@ -46,7 +46,7 @@ clean_up_link() {
         if ip link show | grep -q "$link"; then
             log "delete link: $link"
             ip link set "$link" down || true
-            ip link delete "link" 2>/dev/null || true
+            ip link delete "$link" 2>/dev/null || true
         fi
     log "cleared."
     done
@@ -59,9 +59,16 @@ clean_up(){
 
 create_ns(){
     local ns_name=$1
-    sudo ip netns add "$ns_name"
+    ip netns add "$ns_name"
     NS_LIST+=("$ns_name") # 将名字存入数组
     log "created successful: $ns_name"
+}
+
+add_link(){
+    local link_name=$1
+    ip link add "$link_name" type veth peer name "$2" 
+    LINK_LIST+=("$link_name")
+    log "created successful: $link_name"
 }
 
 debug_pause() {
@@ -78,11 +85,10 @@ trap clean_up EXIT
 #varify namespace speration then link to host VM
 main1() {
     echo "check current namspace folder"
-    ip netns list
     create_ns ns1
     debug_pause created single namespace
     run_cmd ip netns exec ns1 ip link set lo up
-    local link1="veth-client" | run_cmd ip link add "$link1" type veth peer name veth-server | LINK_LIST+=("$link1")
+    add_link "veth-client" "veth-server"
    
     run_cmd ip addr add 172.18.0.11/16 dev veth-client
     run_cmd ip link set veth-client up
