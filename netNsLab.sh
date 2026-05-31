@@ -23,8 +23,10 @@ log() {
 
 run_cmd() {
     log "run: $*"
-    if ! "$@" > /dev/null 2>&1; then
-        echo -e "${RED}[ERROR] failed: $*${NC}"
+    local output
+    if ! output=$("$@" 2>&1); then
+        echo -e "\n${RED}[ERROR] $*${NC}"
+        echo -e "${RED}[DEBUG] $output${NC}\n"
         exit 1
     fi
 }
@@ -36,8 +38,8 @@ clean_up_ns() {
             log "delete NS: $ns"
             sudo ip netns delete "$ns"
         fi
-    log "cleared."
     done
+    log "cleared."
 }
 
 clean_up_link() {
@@ -48,9 +50,11 @@ clean_up_link() {
             ip link set "$link" down || true
             ip link delete "$link" 2>/dev/null || true
         fi
-    log "cleared."
     done
+    log "cleared."
 }
+
+ipns() { ip netns exec "$@"; }
 
 clean_up(){
     clean_up_link
@@ -64,7 +68,7 @@ create_ns(){
     log "created successful: $ns_name"
 }
 
-add_link(){
+add_veth(){
     local link_name=$1
     ip link add "$link_name" type veth peer name "$2" 
     LINK_LIST+=("$link_name")
@@ -84,18 +88,54 @@ trap clean_up EXIT
 
 #varify namespace speration then link to host VM
 main1() {
-    echo "check current namspace folder"
+    # echo "check current namspace folder"
     create_ns ns1
-    debug_pause created single namespace
+    # debug_pause created single namespace
     run_cmd ip netns exec ns1 ip link set lo up
-    add_link "veth-client" "veth-server"
+    add_veth veth-12 veth-12p
    
-    run_cmd ip addr add 172.18.0.11/16 dev veth-client
-    run_cmd ip link set veth-client up
-    run_cmd ip addr add 172.18.0.12/16 dev veth-server
-    run_cmd ip link set veth-server up
-    debug_pause veth linked created, both peer in host
+    run_cmd ip addr add 172.18.0.11/24 dev veth-12
+    run_cmd ip link set veth-12 up
+    run_cmd ip addr add 172.18.0.12/24 dev veth-12p
+    run_cmd ip link set veth-12p up
+    # debug_pause veth linked created, both peer in host
+
+    create_ns ns2
+    run_cmd ip netns exec ns2 ip link set lo up
+    run_cmd ip link set veth-12 netns ns1
+    run_cmd ip link set veth-12p netns ns2
+    run_cmd ipns ns1 ip addr add 172.18.0.11/24 dev veth-12
+    run_cmd ipns ns2 ip addr add 172.18.0.12/24 dev veth-12p
+    run_cmd ipns ns1 ip link set veth-12 up
+    run_cmd ipns ns2 ip link set veth-12p up
+    #debug_pause created ns2, ns1 \& ns2 connected using veth-12
+
+    add_veth veth-s1 veth-s1p
+    run_cmd ip addr add 172.18.1.11/24 dev veth-s1
+    run_cmd ip link set veth-s1p netns ns1
+    run_cmd ipns ns1 ip addr add 172.18.1.12/24 dev veth-s1p
+    run_cmd ip link set veth-s1 up
+    run_cmd ipns ns1 ip link set veth-s1p up
+    # debug_pause host <-veth-> ns1 <-veth-> ns2
+
+    # set ns2 route table out via ns1
+    run_cmd ip netns exec ns2 ip route add default via 172.18.0.11
+    # set host route table to 172.18.0.0/24 via ns1
+    run_cmd ip route add 172.18.0.0/24 via 172.18.1.12
+    # debug_pause test ns2 connection to host via ns1
+    clean_up
 }
 
+main2(){
+    create_ns ns1
+    create_ns ns2
+    create_ns ns3
+    run_cmd ip link add br0 type bridge
+    
+
+}
+
+
 main1 "$@"
+main2 "$@"
 
