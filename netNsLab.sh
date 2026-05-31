@@ -15,6 +15,8 @@ HOST_IP=$(hostname -I | awk '{print $1}')
 SELF_127_IP="127.0.0.1"
 NS_LIST=()
 LINK_LIST=()
+BR_LIST=()
+
 DEBUG=true
 
 log() {
@@ -54,11 +56,22 @@ clean_up_link() {
     log "cleared."
 }
 
+clean_up_br(){
+    for br in "${BR_LIST[@]}"; do
+        echo "$br"
+        if ip a | grep -q "$br"; then
+            ip link del "$br" 2>/dev/null || true
+        fi
+    done
+    log "cleared created bridge."
+}
+
 ipns() { ip netns exec "$@"; }
 
 clean_up(){
     clean_up_link
     clean_up_ns
+    clean_up_br
 }
 
 create_ns(){
@@ -73,6 +86,13 @@ add_veth(){
     ip link add "$link_name" type veth peer name "$2" 
     LINK_LIST+=("$link_name")
     log "created successful: $link_name"
+}
+
+add_br_ip(){
+    local br_name="$2"
+    ip address add "$1" dev "$2"
+    BR_LIST+=("$br_name")
+    log "created bridge $br_name"
 }
 
 debug_pause() {
@@ -122,20 +142,39 @@ main1() {
     run_cmd ip netns exec ns2 ip route add default via 172.18.0.11
     # set host route table to 172.18.0.0/24 via ns1
     run_cmd ip route add 172.18.0.0/24 via 172.18.1.12
-    # debug_pause test ns2 connection to host via ns1
     clean_up
+    # debug_pause check route
 }
 
 main2(){
+    echo ""
+    log "started 2nd lab focus on bridge"
     create_ns ns1
     create_ns ns2
     create_ns ns3
+    # created bridge br0
     run_cmd ip link add br0 type bridge
-    
+    add_br_ip 172.18.0.1/24 br0
+    debug_pause confirm host ip link has bridge
+
+    add_veth v-b1 v-b1p
+    run_cmd ip link set v-b1p netns ns1
+    run_cmd ipns ns1 ip a add 172.18.0.17/28 dev v-b1p
+    run_cmd ip link set v-b1 master br0
+    run_cmd ip link set v-b1 up
+
+    add_veth v-b2 v-b2p
+    run_cmd ip link set v-b2p netns ns2
+    run_cmd ipns ns2 ip a add 172.18.0.18/28 dev v-b2p
+    run_cmd ip link set v-b2 master br0
+    run_cmd ip link set v-b2 up
+
+    debug_pause n1, n2 linked to bridge b0
+
 
 }
 
 
-main1 "$@"
+#main1 "$@"
 main2 "$@"
 
