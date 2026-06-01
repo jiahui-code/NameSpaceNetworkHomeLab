@@ -67,7 +67,7 @@ clean_up_br(){
 
 clean_up_snat(){
     if  iptables -t nat -C POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null; then
-        echo "SNAT rule exists, ready to clean up."
+        # echo "SNAT rule exists, ready to clean up."
         iptables -t nat -D POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
     fi
     log "cleared created SNAT"
