@@ -72,6 +72,8 @@ clean_up(){
     clean_up_link
     clean_up_ns
     clean_up_br
+    # clear global variable when sublab finished
+    NS_LIST=(); LINK_LIST=(); BR_LIST=();
 }
 
 create_ns(){
@@ -98,7 +100,7 @@ add_br_ip(){
 debug_pause() {
     if [[ "$DEBUG" == "true" ]]; then
         echo "$*"
-        echo -e "\033[1;33m[DEBUG]${NC} Debug pause, enter to continue."
+        echo -e "\033[1;33m[DEBUG]${NC} Enter to continue."
         echo -ne "ip a | ping | ip rout | ip link show | bridge fdb show"
         read -r
     fi
@@ -142,8 +144,8 @@ main1() {
     run_cmd ip netns exec ns2 ip route add default via 172.18.0.11
     # set host route table to 172.18.0.0/24 via ns1
     run_cmd ip route add 172.18.0.0/24 via 172.18.1.12
-    clean_up
     # debug_pause check route
+    clean_up
 }
 
 main2(){
@@ -155,21 +157,46 @@ main2(){
     # created bridge br0
     run_cmd ip link add br0 type bridge
     add_br_ip 172.18.0.1/24 br0
-    debug_pause confirm host ip link has bridge
+    run_cmd ip link set br0 up
+    debug_pause confirm host ip link has bridge up
 
     add_veth v-b1 v-b1p
     run_cmd ip link set v-b1p netns ns1
     run_cmd ipns ns1 ip a add 172.18.0.17/28 dev v-b1p
     run_cmd ip link set v-b1 master br0
-    run_cmd ip link set v-b1 up
+    run_cmd ipns ns1 ip link set lo up
+    run_cmd ipns ns1 ip link set v-b1p up
 
     add_veth v-b2 v-b2p
     run_cmd ip link set v-b2p netns ns2
     run_cmd ipns ns2 ip a add 172.18.0.18/28 dev v-b2p
     run_cmd ip link set v-b2 master br0
-    run_cmd ip link set v-b2 up
+    run_cmd ipns ns2 ip link set lo up
+    run_cmd ipns ns2 ip link set v-b2p up
 
-    debug_pause n1, n2 linked to bridge b0
+    run_cmd ip link set v-b1 up
+    run_cmd ip link set v-b2 up
+    # debug_pause n1, n2 linked to bridge b0\; n1 \& n2 connected, but cannot ping bridge IP.
+
+    run_cmd ipns ns2 ip route add 172.18.0.0/26 dev v-b2p
+    # check kenel IP forward switch and turn it on
+    run_cmd sysctl net.ipv4.ip_forward | grep -q "= 1" || sudo sysctl -w net.ipv4.ip_forward=1
+    # debug_pause ns2 can ping bridge IP, but cannot ping host 192.xxx IP
+    run_cmd ipns ns2 ip route add default via 172.18.0.1 dev v-b2p
+    # debug_pause ns2 can ping host 192.xxx IP, but ping 8.8.8.8 fail, because SNAT unactive
+
+    add_veth v-b3 v-b3p
+    run_cmd ip link set v-b3p netns ns3
+    run_cmd ipns ns3 ip a add 172.18.0.55/28 dev v-b3p
+    run_cmd ip link set v-b3 master br0
+    run_cmd ipns ns3 ip link set lo up
+    run_cmd ipns ns3 ip link set v-b3p up
+    run_cmd ip link set v-b3 up
+    debug_pause connect ns3 and bridge in ns1,ns2 different subnet
+
+    # ping outter IP
+
+
 
 
 }
