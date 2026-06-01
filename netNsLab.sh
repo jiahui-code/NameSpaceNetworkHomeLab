@@ -34,18 +34,18 @@ run_cmd() {
 }
 
 clean_up_ns() {
-    log "chean up ns."
+    # log "chean up ns."
     for ns in "${NS_LIST[@]}"; do
         if ip netns list | grep -q "$ns"; then
             log "delete NS: $ns"
             sudo ip netns delete "$ns"
         fi
     done
-    log "cleared."
+    log "cleared namespaces."
 }
 
 clean_up_link() {
-    log "chean up link."
+    # log "chean up link."
     for link in "${LINK_LIST[@]}"; do
         if ip link show | grep -q "$link"; then
             log "delete link: $link"
@@ -53,17 +53,24 @@ clean_up_link() {
             ip link delete "$link" 2>/dev/null || true
         fi
     done
-    log "cleared."
+    log "cleared veth links"
 }
 
 clean_up_br(){
     for br in "${BR_LIST[@]}"; do
-        echo "$br"
         if ip a | grep -q "$br"; then
             ip link del "$br" 2>/dev/null || true
         fi
     done
     log "cleared created bridge."
+}
+
+clean_up_snat(){
+    if  iptables -t nat -C POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null; then
+        echo "SNAT rule exists, ready to clean up."
+        iptables -t nat -D POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
+    fi
+    log "cleared created SNAT"
 }
 
 ipns() { ip netns exec "$@"; }
@@ -72,6 +79,7 @@ clean_up(){
     clean_up_link
     clean_up_ns
     clean_up_br
+    clean_up_snat
     # clear global variable when sublab finished
     NS_LIST=(); LINK_LIST=(); BR_LIST=();
 }
@@ -158,7 +166,7 @@ main2(){
     run_cmd ip link add br0 type bridge
     add_br_ip 172.18.0.1/24 br0
     run_cmd ip link set br0 up
-    debug_pause confirm host ip link has bridge up
+    # debug_pause confirm host ip link has bridge up
 
     add_veth v-b1 v-b1p
     run_cmd ip link set v-b1p netns ns1
@@ -178,12 +186,17 @@ main2(){
     run_cmd ip link set v-b2 up
     # debug_pause n1, n2 linked to bridge b0\; n1 \& n2 connected, but cannot ping bridge IP.
 
-    run_cmd ipns ns2 ip route add 172.18.0.0/26 dev v-b2p
+    run_cmd ipns ns2 ip route add 172.18.0.0/24 dev v-b2p
     # check kenel IP forward switch and turn it on
     run_cmd sysctl net.ipv4.ip_forward | grep -q "= 1" || sudo sysctl -w net.ipv4.ip_forward=1
     # debug_pause ns2 can ping bridge IP, but cannot ping host 192.xxx IP
     run_cmd ipns ns2 ip route add default via 172.18.0.1 dev v-b2p
     # debug_pause ns2 can ping host 192.xxx IP, but ping 8.8.8.8 fail, because SNAT unactive
+
+    # do the same for ns1
+    run_cmd ipns ns1 ip route add 172.18.0.0/24 dev v-b1p
+    run_cmd ipns ns1 ip route add default via 172.18.0.1 dev v-b1p
+
 
     add_veth v-b3 v-b3p
     run_cmd ip link set v-b3p netns ns3
@@ -192,16 +205,25 @@ main2(){
     run_cmd ipns ns3 ip link set lo up
     run_cmd ipns ns3 ip link set v-b3p up
     run_cmd ip link set v-b3 up
+    run_cmd ipns ns3 ip route add 172.18.0.0/24 dev v-b3p
+    run_cmd ipns ns3 ip route add default via 172.18.0.1 dev v-b3p
     debug_pause connect ns3 and bridge in ns1,ns2 different subnet
+    # n1, n2, n3, host are connected, inter ping successful. 
+    # hostname -I | awk '{print $1}' | xargs ip netns exec ns-name ping
+}
 
-    # ping outter IP
 
-
-
+# lab 3 connected to outter IP
+main3() {
+    # n1, n2, n3, host are connected, inter ping successful. 
+    echo "SNAT lab: connect to outter IP"
+    run_cmd iptables -t nat -A POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
+    debug_pause n1, n2, n3, bridge can all ping outer IP now
 
 }
 
 
-#main1 "$@"
+main1 "$@"
 main2 "$@"
+main3 "$@"
 
