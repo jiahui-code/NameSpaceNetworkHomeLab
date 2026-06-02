@@ -105,7 +105,7 @@ add_br_ip(){
     log "created bridge $br_name"
 }
 
-debug_pause() {
+observe_pause() {
     if [[ "$DEBUG" == "true" ]]; then
         echo "$*"
         echo -e "\033[1;33m[DEBUG]${NC} Enter to continue."
@@ -120,7 +120,7 @@ trap clean_up EXIT
 main1() {
     # echo "check current namspace folder"
     create_ns ns1
-    # debug_pause created single namespace
+    # observe_pause created single namespace
     run_cmd ip netns exec ns1 ip link set lo up
     add_veth veth-12 veth-12p
    
@@ -128,7 +128,7 @@ main1() {
     run_cmd ip link set veth-12 up
     run_cmd ip addr add 172.18.0.12/24 dev veth-12p
     run_cmd ip link set veth-12p up
-    # debug_pause veth linked created, both peer in host
+    # observe_pause veth linked created, both peer in host
 
     create_ns ns2
     run_cmd ip netns exec ns2 ip link set lo up
@@ -138,7 +138,7 @@ main1() {
     run_cmd ipns ns2 ip addr add 172.18.0.12/24 dev veth-12p
     run_cmd ipns ns1 ip link set veth-12 up
     run_cmd ipns ns2 ip link set veth-12p up
-    #debug_pause created ns2, ns1 \& ns2 connected using veth-12
+    # observe_pause created ns2, ns1 \& ns2 connected using veth-12
 
     add_veth veth-s1 veth-s1p
     run_cmd ip addr add 172.18.1.11/24 dev veth-s1
@@ -146,13 +146,13 @@ main1() {
     run_cmd ipns ns1 ip addr add 172.18.1.12/24 dev veth-s1p
     run_cmd ip link set veth-s1 up
     run_cmd ipns ns1 ip link set veth-s1p up
-    # debug_pause host <-veth-> ns1 <-veth-> ns2
+    #  observe_pause host <-veth-> ns1 <-veth-> ns2
 
     # set ns2 route table out via ns1
     run_cmd ip netns exec ns2 ip route add default via 172.18.0.11
     # set host route table to 172.18.0.0/24 via ns1
     run_cmd ip route add 172.18.0.0/24 via 172.18.1.12
-    # debug_pause check route
+    #  observe_pause check route
     clean_up
 }
 
@@ -166,7 +166,7 @@ main2(){
     run_cmd ip link add br0 type bridge
     add_br_ip 172.18.0.1/24 br0
     run_cmd ip link set br0 up
-    # debug_pause confirm host ip link has bridge up
+    #  observe_pause confirm host ip link has bridge up
 
     add_veth v-b1 v-b1p
     run_cmd ip link set v-b1p netns ns1
@@ -184,14 +184,14 @@ main2(){
 
     run_cmd ip link set v-b1 up
     run_cmd ip link set v-b2 up
-    # debug_pause n1, n2 linked to bridge b0\; n1 \& n2 connected, but cannot ping bridge IP.
+    # observe_pause n1, n2 linked to bridge b0\; n1 \& n2 connected, but cannot ping bridge IP.
 
     run_cmd ipns ns2 ip route add 172.18.0.0/24 dev v-b2p
     # check kenel IP forward switch and turn it on
     run_cmd sysctl net.ipv4.ip_forward | grep -q "= 1" || sudo sysctl -w net.ipv4.ip_forward=1
-    # debug_pause ns2 can ping bridge IP, but cannot ping host 192.xxx IP
+    # observe_pause ns2 can ping bridge IP, but cannot ping host 192.xxx IP
     run_cmd ipns ns2 ip route add default via 172.18.0.1 dev v-b2p
-    # debug_pause ns2 can ping host 192.xxx IP, but ping 8.8.8.8 fail, because SNAT unactive
+    # observe_pause ns2 can ping host 192.xxx IP, but ping 8.8.8.8 fail, because SNAT unactive
 
     # do the same for ns1
     run_cmd ipns ns1 ip route add 172.18.0.0/24 dev v-b1p
@@ -207,7 +207,7 @@ main2(){
     run_cmd ip link set v-b3 up
     run_cmd ipns ns3 ip route add 172.18.0.0/24 dev v-b3p
     run_cmd ipns ns3 ip route add default via 172.18.0.1 dev v-b3p
-    debug_pause connect ns3 and bridge in ns1,ns2 different subnet
+    observe_pause connect ns3 and bridge in ns1,ns2 different subnet
     # n1, n2, n3, host are connected, inter ping successful. 
     # hostname -I | awk '{print $1}' | xargs ip netns exec ns-name ping
 }
@@ -218,7 +218,7 @@ main3() {
     # n1, n2, n3, host are connected, inter ping successful. 
     echo "SNAT lab: connect to outter IP"
     run_cmd iptables -t nat -A POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
-    debug_pause n1, n2, n3, bridge can all ping outer IP now
+    observe_pause n1, n2, n3, bridge can all ping outer IP now
 
 }
 
