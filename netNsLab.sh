@@ -197,7 +197,6 @@ main2(){
     run_cmd ipns ns1 ip route add 172.18.0.0/24 dev v-b1p
     run_cmd ipns ns1 ip route add default via 172.18.0.1 dev v-b1p
 
-
     add_veth v-b3 v-b3p
     run_cmd ip link set v-b3p netns ns3
     run_cmd ipns ns3 ip a add 172.18.0.55/28 dev v-b3p
@@ -212,18 +211,22 @@ main2(){
     # hostname -I | awk '{print $1}' | xargs ip netns exec ns-name ping
 }
 
-
 # lab 3 connected to outter IP
 main3() {
     # n1, n2, n3, host are connected, inter ping successful. 
     echo "SNAT lab: connect to outter IP"
     run_cmd iptables -t nat -A POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
     observe_pause n1, n2, n3, bridge can all ping outer IP now
+}
 
+# lab 4 is 
+main4(){
+    echo 
 }
 
 
-main1 "$@"
+# main1 "$@"
 main2 "$@"
 main3 "$@"
+main4 "$@"
 

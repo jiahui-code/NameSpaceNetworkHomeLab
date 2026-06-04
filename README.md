@@ -18,4 +18,38 @@ By rebuilding these network stacks, this lab serves as a hands-on verification o
    **Key Actions:**
    Created a virtual bridge (`br0`) to connect multiple namespaces.
    Configured routing and SNAT (using `iptables`) to allow namespaces to communicate with the host and the external internet.
-4. production env 3 layer network
+```mermaid
+flowchart TD
+	EX[google]
+	H0[br0 also router <br/> 172.18.0.1/24 <br/> default GW <br/> ORB Host]
+	n1[ns1 <br/> 172.18.0.17/28]
+	n2[ns2 <br/> 172.18.0.18/28]
+	n3[ns3 <br/> 172.18.0.55/28]
+	
+	n1 & n2 & n3 <---> |veth connect to bridge| H0 
+	H0 <--->|SNAT| EX
+	
+```
+4. DNAT 
+	Isolate bridge and host, use DNAT to send request from host to ns1/2/3
+	`[172.18.0.1/24 <br/> default GW]`
+```mermaid
+	flowchart LR
+		EX[google]
+		H0[ORB Host]
+		R0[Router NS]
+		n1[ns1 <br/> 172.18.0.17/28]
+		n2[ns2 <br/> 172.18.0.18/28]
+		br[Br0]
+		
+		subgraph R0
+			br
+			end
+			
+		n1 & n2 <---> |veth| br
+		H0 --->|DNAT| R0
+		H0 <---> EX
+```
+4. Firewall filtering
+	 
+
