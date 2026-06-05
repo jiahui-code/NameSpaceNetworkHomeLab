@@ -85,10 +85,13 @@ clean_up(){
 }
 
 create_ns(){
-    local ns_name=$1
-    ip netns add "$ns_name"
-    NS_LIST+=("$ns_name") # 将名字存入数组
-    log "created successful: $ns_name"
+    for ns in "$@"; do
+        if ! ip netns list | grep -q "^$ns$"; then
+            ip netns add "$ns" #save created ns name to global
+            NS_LIST+=("$ns")
+        fi
+    done
+    log "created successful: $*"
 }
 
 add_veth(){
@@ -217,16 +220,30 @@ main3() {
     echo "SNAT lab: connect to outter IP"
     run_cmd iptables -t nat -A POSTROUTING -s 172.18.0.0/24 -o eth0 -j MASQUERADE
     observe_pause n1, n2, n3, bridge can all ping outer IP now
+    clean_up
 }
 
-# lab 4 is 
+# lab 4 isolate router namespace, add in firewall filter
 main4(){
-    echo 
+    create_ns fw rt ns1 ns2 ns3
+    # create firewall, router ns. seperate bridges from host to router ns
+    create_ns fwns
+    create_ns rt_ns
+    run_cmd ip link set v-b1 netns rt_ns 
+    run_cmd ip link set v-b2 netns rt_ns 
+    run_cmd ip link set v-b3 netns rt_ns 
+    add_veth v-fw-r v-fw-r_p
+    add_veth v-fw v-fw_p
+    run_cmd ip link set v-fw_p netns fwns
+    run_cmd ip link set v-fw-r netns fwns
+    run_cmd ip link set v-fw-r_p netns rt_ns
+    ip link set 
+    observe_pause
 }
 
 
 # main1 "$@"
 main2 "$@"
 main3 "$@"
-main4 "$@"
+#main4 "$@"
 
