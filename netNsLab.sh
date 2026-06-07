@@ -241,23 +241,29 @@ main3() {
 
 # lab 4 isolate router namespace, add in firewall filter
 main4(){
-    create_ns fw rt ns1 ns2 ns3
-    # create firewall, router ns. seperate bridges from host to router ns
-    add_veth v-hf v-fr v-b1 v-b2 v-b3
+    create_ns client fw rt ns1 ns2 ns3
+    # --- create firewall, router ns. seperate bridges from host to router ns
+    add_veth v-cf v-fr v-b1 v-b2 v-b3
     # observe_pause create namespaces and veths
     
-    # create bridge in ns
-    # create veth in host, set veth ports into ns
-    # activate bridge 
-    # link veth ports to bridge, master
-    # activate veth port  
-    # set bridge IP, set port IP
-    run_cmd ip link set v-hf_p netns fw 
+    # -- create bridge in ns
+    # -- create veth in host, set veth ports into ns
+    # -- activate bridge 
+    # -- link veth ports to bridge, master
+    # -- activate veth port  
+    # -- set bridge IP, set port IP
+    run_cmd ip link set v-cf netns client
+    run_cmd ip link set v-cf_p netns fw 
     run_cmd ip link set v-fr netns fw
     run_cmd ip link set v-fr_p netns rt
     run_cmd ip link set v-b1_p netns ns1
     run_cmd ip link set v-b2_p netns ns2
     run_cmd ip link set v-b3_p netns ns3
+
+    run_cmd ipns client ip link set v-cf up
+    run_cmd ipns fw ip link set v-cf_p up
+    run_cmd ipns fw ip link set v-fr up
+    run_cmd ipns rt ip link set v-fr_p up
 
     run_cmd ipns rt ip link add br-r type bridge
 
@@ -265,34 +271,30 @@ main4(){
     ip link set v-b2 netns rt
     ip link set v-b3 netns rt
 
-    # ipns rt ip link set v-b1 master br-r
-    # ipns rt ip link set v-b2 master br-r
-    # ipns rt ip link set v-b3 master br-r
     br_link_set_then_up rt br-r v-b1 v-b2 v-b3
-    observe_pause allocate veth port
+    # observe_pause allocate veth port
     ipns ns1 ip link set v-b1_p up
     ipns ns2 ip link set v-b2_p up
     ipns ns3 ip link set v-b3_p up
-    # bridge cannot be activate unless veth up
+    # --- bridge cannot be activate unless veth up
     run_cmd ipns rt ip link set br-r up
-    observe_pause activate veths and bridge
+    # observe_pause activate veths and bridge
 
     ipns rt sysctl net.ipv4.ip_forward 
-    # allocate IP addresses to ns123
-    run_cmd ipns ns1 ip a add 172.18.0.11/28 dev v-b1_p
-    run_cmd ipns ns2 ip a add 172.18.0.12/28 dev v-b2_p
-    run_cmd ipns ns3 ip a add 172.18.0.13/28 dev v-b3_p
+    # --- allocate IP addresses to ns123
+    run_cmd ipns ns1 ip a add 192.168.0.11/28 dev v-b1_p
+    run_cmd ipns ns2 ip a add 192.168.0.12/28 dev v-b2_p
+    run_cmd ipns ns3 ip a add 192.168.0.13/28 dev v-b3_p
     observe_pause bridge no IP, ns 123 has IP, ns 123 can ping each other
 
-    run_cmd ipns rt ip a add 172.18.0.1/28 dev br-r
+    run_cmd ipns rt ip a add 192.168.0.1/28 dev br-r
+    run_cmd ipns rt ip a add 10.0.0.2/30 dev v-fr_p
+    run_cmd ipns fw ip a add 10.0.0.1/30 dev v-fr
+    run_cmd ipns fw ip a add 10.10.0.1/30 dev v-cf_p
+    run_cmd ipns client ip a add 172.20.0.1/30 dev v-cf
+
     observe_pause bridge allocate IP 
 
-    run_cmd ip a add 172.18.0.17/28 dev v-b2_p
-    run_cmd ip link set v- netns ns 
-    run_cmd ip link set v-fw_p netns fwns
-    run_cmd ip link set v-fw-r netns fwns
-    run_cmd ip link set v-fw-r_p netns rt_ns
-    ip link set 
     observe_pause
 }
 
