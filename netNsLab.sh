@@ -279,10 +279,13 @@ main4(){
 
     ipns rt sysctl net.ipv4.ip_forward 
     # allocate IP addresses to ns123
-    run_cmd ipns ns1 ip a add 172.18.0.1/28 dev v-b1_p
-    run_cmd ipns ns2 ip a add 172.18.0.2/28 dev v-b2_p
-    run_cmd ipns ns3 ip a add 172.18.0.3/28 dev v-b3_p
+    run_cmd ipns ns1 ip a add 172.18.0.11/28 dev v-b1_p
+    run_cmd ipns ns2 ip a add 172.18.0.12/28 dev v-b2_p
+    run_cmd ipns ns3 ip a add 172.18.0.13/28 dev v-b3_p
     observe_pause bridge no IP, ns 123 has IP, ns 123 can ping each other
+
+    run_cmd ipns rt ip a add 172.18.0.1/28 dev br-r
+    observe_pause bridge allocate IP 
 
     run_cmd ip a add 172.18.0.17/28 dev v-b2_p
     run_cmd ip link set v- netns ns 
