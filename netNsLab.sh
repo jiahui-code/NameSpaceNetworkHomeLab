@@ -47,7 +47,7 @@ clean_up_ns() {
 clean_up_link() {
     # log "chean up link."
     for link in "${LINK_LIST[@]}"; do
-        if ip link show | grep -q "$link"; then
+        if ip link show "$link"; then
             log "delete link: $link"
             ip link set "$link" down || true
             ip link delete "$link" 2>/dev/null || true
@@ -88,17 +88,22 @@ create_ns(){
     for ns in "$@"; do
         if ! ip netns list | grep -q "^$ns$"; then
             ip netns add "$ns" #save created ns name to global
+            ipns "$ns" ip link set lo up
             NS_LIST+=("$ns")
         fi
     done
-    log "created successful: $*"
+    log "created successful: $*, netns lo set up"
 }
 
 add_veth(){
-    local link_name=$1
-    ip link add "$link_name" type veth peer name "$2" 
-    LINK_LIST+=("$link_name")
-    log "created successful: $link_name"
+    for lk in "$@"; do
+        if ! ip link show "$lk" > /dev/null 2>&1; then 
+            run_cmd ip link add "$lk" type veth peer name "$lk"_p
+            LINK_LIST+=("$lk")
+        fi
+    done
+    log "created successful: $lk"
+    echo "${LINK_LIST[@]}"
 }
 
 add_br_ip(){
@@ -106,6 +111,16 @@ add_br_ip(){
     ip address add "$1" dev "$2"
     BR_LIST+=("$br_name")
     log "created bridge $br_name"
+}
+
+br_link_set(){
+    # br_link_set <namespace> <bridge_id> <link_id...>
+    local ns="$1"
+    local bridge="$2"
+    shift 2
+    for link in "$@"; do
+        ipns "$ns" ip link set "$link" master "$bridge"
+    done
 }
 
 observe_pause() {
@@ -227,13 +242,38 @@ main3() {
 main4(){
     create_ns fw rt ns1 ns2 ns3
     # create firewall, router ns. seperate bridges from host to router ns
-    create_ns fwns
-    create_ns rt_ns
-    run_cmd ip link set v-b1 netns rt_ns 
-    run_cmd ip link set v-b2 netns rt_ns 
-    run_cmd ip link set v-b3 netns rt_ns 
-    add_veth v-fw-r v-fw-r_p
-    add_veth v-fw v-fw_p
+    add_veth v-hf v-fr v-b1 v-b2 v-b3
+    # observe_pause create namespaces and veths
+    
+    # create bridge in ns
+    # create veth in host, set veth ports into ns
+    # activate bridge 
+    # link veth ports to bridge, master
+    # activate veth port  
+    # set bridge IP, set port IP
+    run_cmd ip link set v-hf_p netns fw 
+    run_cmd ip link set v-fr netns fw
+    run_cmd ip link set v-fr_p netns rt
+    run_cmd ip link set v-b1_p netns ns1
+    run_cmd ip link set v-b2_p netns ns2
+    run_cmd ip link set v-b3_p netns ns3
+
+    run_cmd ipns rt ip link add br-r type bridge
+    
+    run_cmd ip link set v-b1 netns rt
+    run_cmd ip link set v-b2 netns rt
+    run_cmd ip link set v-b3 netns rt
+    
+    ipns rt ip link set v-b1 master br-r
+    ipns rt ip link set v-b2 master br-r
+    ipns rt ip link set v-b3 master br-r
+
+    run_cmd ipns rt ip link set br-r up
+
+    observe_pause 
+    
+    run_cmd ip a add 172.18.0.17/28 dev v-b2_p
+    run_cmd ip link set v- netns ns 
     run_cmd ip link set v-fw_p netns fwns
     run_cmd ip link set v-fw-r netns fwns
     run_cmd ip link set v-fw-r_p netns rt_ns
@@ -243,7 +283,7 @@ main4(){
 
 
 # main1 "$@"
-main2 "$@"
-main3 "$@"
-#main4 "$@"
+# main2 "$@"
+# main3 "$@"
+main4 "$@"
 
