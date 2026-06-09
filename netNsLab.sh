@@ -285,32 +285,34 @@ main4(){
     run_cmd ipns ns1 ip a add 192.168.0.11/28 dev v-b1_p
     run_cmd ipns ns2 ip a add 192.168.0.12/28 dev v-b2_p
     run_cmd ipns ns3 ip a add 192.168.0.13/28 dev v-b3_p
-    observe_pause bridge no IP, ns 123 has IP, ns 123 can ping each other
+    # observe_pause bridge no IP, ns 123 has IP, ns 123 can ping each other
 
     run_cmd ipns rt ip a add 192.168.0.1/28 dev br-r
     run_cmd ipns rt ip a add 10.0.0.2/30 dev v-fr_p
     run_cmd ipns fw ip a add 10.0.0.1/30 dev v-fr
-    run_cmd ipns fw ip a add 10.10.0.1/30 dev v-cf_p
+    run_cmd ipns fw ip a add 172.20.0.2/30 dev v-cf_p
     run_cmd ipns client ip a add 172.20.0.1/30 dev v-cf
     # --- set defaultGW for pub namespaces
     run_cmd ipns ns1 ip route add default via 192.168.0.1 dev v-b1_p
     run_cmd ipns ns2 ip route add default via 192.168.0.1 dev v-b2_p
-    observe_pause w/default GW ns1 ns2 can ping router not 192 IP
+    # observe_pause w/default GW ns1 ns2 can ping router not 192 IP
     run_cmd ipns ns3 ip route add default via 192.168.0.1 dev v-b3_p
 
     # -- ns1 pings rt, cant ping fw. need SNAT
     # -- rt cannot access external, need to set default gw as firewall
     run_cmd ipns rt ip route add default via 10.0.0.1 dev v-fr_p
-    observe_pause added router default gateway to firewall
+    # observe_pause added router default gateway to firewall
 
     # -- set SNAT so response from fw can be sent to correct 192 IP
     run_cmd ipns rt iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o 10.0.0.2
     # -- fw and rt is connected in layer 3, need to set routing next jump in fw
     # -- via followed with router-side veth IP not fw-side IP
     run_cmd ipns fw ip route add 192.168.0.0/16 via 10.0.0.2
-    observe_pause ns1 ns2 ns3 inter-pings w/ FW
+    # observe_pause ns1 ns2 ns3 inter-pings w/ FW
 
     # -- add firewall ingress filter: default block all, only ping & 443 allowed
+    run_cmd ipns fw iptables-restore /opt/lab/iptables.rules
+    observe_pause set firewall rules
 
 }
 

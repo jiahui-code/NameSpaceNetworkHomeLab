@@ -1,0 +1,21 @@
+*filter
+:INPUT REJECT [0:0]
+:FORWARD REJECT [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# allowing connected traffic and lo
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+
+# allowing Ping (ICMP echo-request)
+-A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+
+# allowing HTTPS (443)
+-A INPUT -p tcp --dport 443 -j ACCEPT
+
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -p icmp --icmp-type echo-request -j ACCEPT
+-A FORWARD -p tcp --dport 443 -j ACCEPT
+
+COMMIT
+
