@@ -16,6 +16,7 @@ SELF_127_IP="127.0.0.1"
 NS_LIST=()
 LINK_LIST=()
 BR_LIST=()
+Hello_PIDs=()
 
 DEBUG=true
 
@@ -73,6 +74,12 @@ clean_up_snat(){
     log "cleared created SNAT"
 }
 
+clean_ns_speaking(){
+    for p in "${Hello_PIDs[@]}"; do
+        kill "$p" 2>/dev/null
+    done
+}
+
 ipns() { ip netns exec "$@"; }
 
 clean_up(){
@@ -80,8 +87,9 @@ clean_up(){
     clean_up_ns
     clean_up_br
     clean_up_snat
+    clean_ns_speaking
     # clear global variable when sublab finished
-    NS_LIST=(); LINK_LIST=(); BR_LIST=();
+    NS_LIST=(); LINK_LIST=(); BR_LIST=();Hello_PIDs=();
 }
 
 create_ns(){
@@ -124,11 +132,20 @@ br_link_set_then_up(){
     done
 }
 
+namespace_speak(){
+    ipns "$1" nohup bash -c "
+        while true; do
+            echo -e \"NS1 Hello \$(date '+%H:%M')\" | nc -l -p 443
+            sleep 5
+        done
+    " > /dev/null 2>&1 &
+}
+
 observe_pause() {
     if [[ "$DEBUG" == "true" ]]; then
         echo "$*"
         echo -e "\033[1;33m[DEBUG]${NC} Enter to continue."
-        echo -ne "ip a | ping | ip rout | ip link show | bridge fdb show"
+        echo -ne "ip a | ping | ip rout | ip link show | bridge fdb show\n"
         read -r
     fi
 }
@@ -302,18 +319,29 @@ main4(){
     # -- rt cannot access external, need to set default gw as firewall
     run_cmd ipns rt ip route add default via 10.0.0.1 dev v-fr_p
     # observe_pause added router default gateway to firewall
-
-    # -- set SNAT so response from fw can be sent to correct 192 IP
-    run_cmd ipns rt iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o 10.0.0.2
+    
     # -- fw and rt is connected in layer 3, need to set routing next jump in fw
     # -- via followed with router-side veth IP not fw-side IP
     run_cmd ipns fw ip route add 192.168.0.0/16 via 10.0.0.2
-    # observe_pause ns1 ns2 ns3 inter-pings w/ FW
+    run_cmd ipns client ip route add default via 172.20.0.2 dev v-cf
+    observe_pause ns1 ns2 ns3 inter-pings w/ fw and client
+    
+    # -- set SNAT to disguise inner 196 IP
+    run_cmd ipns fw iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o v-cf_p -j MASQUERADE
+    observe_pause inner IP hidden by SNAT
 
     # -- add firewall ingress filter: default block all, only ping & 443 allowed
     run_cmd ipns fw iptables-restore /opt/lab/iptables.rules
     observe_pause set firewall rules
 
+    # -- add namespace reponse for 443, namespace netcat listen to 443
+    ipns ns1 nohup bash -c 'while true; do echo -e "NS1 Hello" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    Hello_PIDs+=("$!") && log "ns1 speaking"
+    ipns ns2 nohup bash -c 'while true; do echo -e "NS2 Hello*2" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    Hello_PIDs+=("$!") && log "ns2 speaking"
+    ipns ns3 nohup bash -c 'while true; do echo -e "NS3 Hello*3" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    Hello_PIDs+=("$!") && log "ns3 speaking"
+    observe_pause sub ns all speaking now
 }
 
 

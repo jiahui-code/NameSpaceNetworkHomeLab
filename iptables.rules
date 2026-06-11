@@ -1,21 +1,43 @@
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+# SNAT disguise egress IP address
+-A POSTROUTING -s 192.168.0.0/16 -o v-cf_p -j MASQUERADE
+COMMIT
+
 *filter
-:INPUT REJECT [0:0]
-:FORWARD REJECT [0:0]
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
 :OUTPUT ACCEPT [0:0]
 
-# allowing connected traffic and lo
+# 1. reject outter access to inner networking 
+# --- productionwise better user drop, in lab use reject
+# -A FORWARD -i v-cf_p -d 10.0.0.0/8 -j LOG --log-prefix "FW_BLOCK_INTRA: "
+-A FORWARD -i v-cf_p -d 10.0.0.0/8 -j REJECT --reject-with icmp-host-prohibited
+# -A FORWARD -i v-cf_p -d 192.168.0.0/16 -j LOG --log-prefix "FW_BLOCK_INTRA: "
+-A FORWARD -i v-cf_p -d 192.168.0.0/16 -j REJECT --reject-with icmp-host-prohibited
+
+# 2. allow connected access
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 -A INPUT -i lo -j ACCEPT
 
-# allowing Ping (ICMP echo-request)
+# 2. allow SSH, HTTPS, Ping (加入 -m conntrack --ctstate NEW)
 -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+-A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -j ACCEPT
+-A INPUT -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
 
-# allowing HTTPS (443)
--A INPUT -p tcp --dport 443 -j ACCEPT
-
--A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+# 3. allow FORWARD traffic 
+-A FORWARD -s 10.0.0.2 -m conntrack --ctstate NEW -j ACCEPT
 -A FORWARD -p icmp --icmp-type echo-request -j ACCEPT
--A FORWARD -p tcp --dport 443 -j ACCEPT
+# -A FORWARD -p tcp --dport 443 -j ACCEPT
+-A FORWARD -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+
+# 4. ensure unmatched traffic rejected
+-A INPUT -j REJECT --reject-with icmp-port-unreachable
+-A FORWARD -j REJECT --reject-with icmp-port-unreachable
 
 COMMIT
-

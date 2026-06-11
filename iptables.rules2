@@ -1,0 +1,34 @@
+*nat
+:PREROUTING ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+# redirect ingress traffic from port 1/2/3 to sub-namespaces
+-A PREROUTING -i v-cf_p -p tcp --dport 1 -j DNAT --to-destination 192.168.0.11:8080
+-A PREROUTING -i v-cf_p -p tcp --dport 2 -j DNAT --to-destination 192.168.0.12:8080
+-A PREROUTING -i v-cf_p -p tcp --dport 3 -j DNAT --to-destination 192.168.0.13:8080
+
+# SNAT disguise egress IP address
+-A POSTROUTING -d 192.168.0.0/16 -o v-cf_p -j MASQUERADE
+COMMIT
+
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+
+# 1. allow connected access
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+
+# 2. allow DNAT new connection
+-A FORWARD -p tcp -m multiport --dports 8080 -m conntrack --ctstate NEW -j ACCEPT
+
+# 3.  reject outter access to inner networking 
+# productionwise better use drop, in lab use reject
+-A FORWARD -i v-cf_p -d 10.0.0.0/8 -j REJECT --reject-with icmp-host-prohibited
+-A FORWARD -i v-cf_p -d 192.168.0.0/16 -j REJECT --reject-with icmp-host-prohibited
+
+# 4. reject other traffics
+-A FORWARD -j REJECT --reject-with icmp-port-unreachable
+COMMIT
