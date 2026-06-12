@@ -328,20 +328,24 @@ main4(){
     
     # -- set SNAT to disguise inner 196 IP
     run_cmd ipns fw iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o v-cf_p -j MASQUERADE
-    observe_pause inner IP hidden by SNAT
+    # observe_pause inner IP hidden by SNAT
 
     # -- add firewall ingress filter: default block all, only ping & 443 allowed
-    run_cmd ipns fw iptables-restore /opt/lab/iptables.rules
+    # run_cmd ipns fw iptables-restore /opt/lab/iptables.rules
+    # -- reject all ingress traffic to inner IP, only public IP:1/2/3 port allowed
+    run_cmd ipns fw iptables-restore /opt/lab/iptables.rules2
     observe_pause set firewall rules
 
     # -- add namespace reponse for 443, namespace netcat listen to 443
-    ipns ns1 nohup bash -c 'while true; do echo -e "NS1 Hello" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    ipns ns1 nohup bash -c 'while true; do echo -e "Hi, this is NS1" | nc -l -p 8080; sleep 5; done' > /dev/null 2>&1 &
     Hello_PIDs+=("$!") && log "ns1 speaking"
-    ipns ns2 nohup bash -c 'while true; do echo -e "NS2 Hello*2" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    ipns ns2 nohup bash -c 'while true; do echo -e "Hi, this is NS2" | nc -l -p 8080; sleep 5; done' > /dev/null 2>&1 &
     Hello_PIDs+=("$!") && log "ns2 speaking"
-    ipns ns3 nohup bash -c 'while true; do echo -e "NS3 Hello*3" | nc -l -p 443; sleep 5; done' > /dev/null 2>&1 &
+    ipns ns3 nohup bash -c 'while true; do echo -e "Hi, this is NS3" | nc -l -p 8080; sleep 5; done' > /dev/null 2>&1 &
     Hello_PIDs+=("$!") && log "ns3 speaking"
     observe_pause sub ns all speaking now
+
+    clean_up
 }
 
 
