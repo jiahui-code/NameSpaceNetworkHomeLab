@@ -1,8 +1,10 @@
 ## Lab Objective
 
-This project demystifies container networking by manually constructing isolated environments from the ground up using native Linux kernel **Namespaces**.
+This project builds a complete virtual network environment using native Linux networking primitives, including network namespaces, virtual Ethernet pairs (veth), Linux bridges, routing tables and iptables.
 
-By rebuilding these network stacks, this lab serves as a hands-on verification of how container runtimes (like Docker/Kubernetes) abstract OS-level network primitives. It provides a clear view into the underlying mechanisms that govern network isolation, connectivity, and routing in modern containerized environments.
+The goal is not only to understand how container runtimes implement network isolation, but also to develop practical troubleshooting skills by observing packet flow, routing decisions, NAT translation and firewall filtering behavior at each stage of the network path.
+
+The lab progressively evolves from simple namespace connectivity to a multi-tier topology containing dedicated router and firewall namespaces, closely resembling real-world enterprise and cloud networking environments.
 
 ## Steps & Implementation
 
@@ -18,38 +20,32 @@ By rebuilding these network stacks, this lab serves as a hands-on verification o
    **Key Actions:**
    Created a virtual bridge (`br0`) to connect multiple namespaces.
    Configured routing and SNAT (using `iptables`) to allow namespaces to communicate with the host and the external internet.
+
+4. DNAT & Firewall filtering
+   Isolate bridge and host, use DNAT to port-forwarding request from client to ns1/2/3. Block 10 and 196 inner IP access from client.
+
 ```mermaid
 flowchart TD
-	EX[google]
-	H0[br0 also router <br/> 172.18.0.1/24 <br/> default GW <br/> ORB Host]
-	n1[ns1 <br/> 172.18.0.17/28]
-	n2[ns2 <br/> 172.18.0.18/28]
-	n3[ns3 <br/> 172.18.0.55/28]
-	
-	n1 & n2 & n3 <---> |veth connect to bridge| H0 
-	H0 <--->|SNAT| EX
-	
-```
-4. DNAT 
-	Isolate bridge and host, use DNAT to send request from host to ns1/2/3
-	`[172.18.0.1/24 <br/> default GW]`
-```mermaid
-	flowchart LR
-		EX[google]
-		H0[ORB Host]
-		R0[Router NS]
-		n1[ns1 <br/> 172.18.0.17/28]
-		n2[ns2 <br/> 172.18.0.18/28]
-		br[Br0]
-		
-		subgraph R0
-			br
-			end
-			
-		n1 & n2 <---> |veth| br
-		H0 --->|DNAT| R0
-		H0 <---> EX
-```
-4. Firewall filtering
-	 
+    C[Client <br/> 172.20.0.1]
+    FW[Firewall<br/> 172.20.0.2<br/>10.0.0.1/30]
+    
+    FW <---|DNAT| C
+    FW <---> |SNAT| R0_IF
 
+    subgraph R0 [Router NS]
+        R0_IF[WAN Interface <br/> 10.0.0.2/30]
+        br[Br0 <br/> 192.168.0.1/28]
+        R0_IF <---> br
+    end
+
+    %% 调整节点声明顺序，让 Mermaid 从左到右依次渲染
+    br <---> |veth| n1[ns1 <br/> 192.168.0.11/28]
+    br <---> |veth| n2[ns2 <br/> 192.168.0.12/28]
+    br <---> |veth| n3[ns3 <br/> 192.168.0.13/28]
+
+    %% 强行让 n1, n2, n3 垂直对齐（可选，如果想让他们上下排开）
+    %% n1 ~~~ n2 ~~~ n3
+```
+
+5. TODO: Update Firewall filter from iptables to nftables
+6. TODO: Fault injection

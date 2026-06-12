@@ -22,17 +22,15 @@ COMMIT
 -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 -A INPUT -i lo -j ACCEPT
 
-#-A FORWARD -p tcp -m multiport --dports 8080 -m conntrack --ctstate NEW,DNAT -j ACCEPT
+# 2. only DNAT packet allowed
 -A FORWARD -i v-cf_p -p tcp --dport 8080 -m conntrack --ctstate DNAT -j ACCEPT
--A INPUT -i v-cf_p -d 10.0.0.0/8 -p tcp -j REJECT --reject-with tcp-reset
 
 # 3.  reject outter access to inner networking 
 # productionwise better use drop, in lab use reject
 -A FORWARD -i v-cf_p -d 10.0.0.0/8 -p tcp -j REJECT --reject-with tcp-reset
 -A FORWARD -i v-cf_p -d 192.168.0.0/16 -p tcp -j REJECT --reject-with tcp-reset
-
-# 2. allow DNAT new connection to :8080 
-#-A FORWARD -p tcp -m multiport --dports 8080 -m conntrack --ctstate NEW -j ACCEPT
+# fw itself is on 10.0.0.2, when called 10, it's nor forward but input
+-A INPUT -i v-cf_p -d 10.0.0.0/8 -p tcp -j REJECT --reject-with tcp-reset
 
 # 4. reject other traffics
 -A FORWARD -j REJECT --reject-with icmp-port-unreachable

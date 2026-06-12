@@ -301,8 +301,9 @@ main4(){
     # --- allocate IP addresses to ns123
     run_cmd ipns ns1 ip a add 192.168.0.11/28 dev v-b1_p
     run_cmd ipns ns2 ip a add 192.168.0.12/28 dev v-b2_p
-    run_cmd ipns ns3 ip a add 192.168.0.13/28 dev v-b3_p
+    run_cmd ipns ns3 ip a add 192.168.0.13/29 dev v-b3_p
     # observe_pause bridge no IP, ns 123 has IP, ns 123 can ping each other
+    # ns1 & 2 is layer 2 connected, ns1 and 3 is layer 3 connected
 
     run_cmd ipns rt ip a add 192.168.0.1/28 dev br-r
     run_cmd ipns rt ip a add 10.0.0.2/30 dev v-fr_p
@@ -349,8 +350,7 @@ main4(){
 }
 
 
-# main1 "$@"
-# main2 "$@"
-# main3 "$@"
+main1 "$@"
+main2 "$@"
+main3 "$@"
 main4 "$@"
-
