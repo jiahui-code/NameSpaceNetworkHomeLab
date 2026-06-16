@@ -337,8 +337,8 @@ main4(){
     run_cmd ipns fw iptables-restore /opt/lab/iptables.rules2
     observe_pause set firewall rules
 
-    # -- add namespace reponse for 443, namespace netcat listen to 443
-    ipns ns1 nohup bash -c 'while true; do echo -e "Hi, this is NS1" | nc -l -p 8080; sleep 5; done' > /dev/null 2>&1 &
+    # -- add namespace reponse for :8080, namespace netcat listen to 8080
+    ipns ns1 nohup bash -c 'while true; do echo -e "HTTP/1.1 200 OK\n\nHello from NS1" | nc -l -p 8080; sleep 3; done' > /dev/null 2>&1 &
     Hello_PIDs+=("$!") && log "ns1 speaking"
     ipns ns2 nohup bash -c 'while true; do echo -e "Hi, this is NS2" | nc -l -p 8080; sleep 5; done' > /dev/null 2>&1 &
     Hello_PIDs+=("$!") && log "ns2 speaking"
